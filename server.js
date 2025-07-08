@@ -86,3 +86,14 @@ db.connect()
     return crearTablas();
   })
   .catch(err => console.error("❌ Error conectando DB:", err));
+const http = require("http");
+
+const PORT = process.env.PORT || 3000;
+const server = http.createServer((req, res) => {
+  res.writeHead(200);
+  res.end("Servidor MQTT + PostgreSQL activo 🚀");
+});
+
+server.listen(PORT, () => {
+  console.log(`🌐 Servidor escuchando en el puerto ${PORT}`);
+});
