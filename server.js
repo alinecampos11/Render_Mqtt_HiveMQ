@@ -13,7 +13,7 @@ const db = new Client({
   user: "tesis_db_07ex_user",
   host: "dpg-d1miiube5dus73bj9f30-a",
   database: "tesis_db_07ex",
-  password: "P3ZzxdegDSY2mgA6SYNexm7aD64YTzj1",
+  password: "P3ZzxdegDSY2mgA6SYNexm7aD64YTzjl",
   port: 5432,
   ssl: { rejectUnauthorized: false }
 });
