@@ -3,11 +3,14 @@ const { Client } = require("pg");
 const http = require("http");
 
 // 📡 Conexión a HiveMQ
-const mqttClient = mqtt.connect("wss://8d8ef16cb5534dacbca2b130fa00d5b2.s1.eu.hivemq.cloud:8884/mqtt", {
-  username: "AlineCampos2",
-  password: "Cedric.2020",
-  protocol: "wss"
-});
+const mqttClient = mqtt.connect(
+  "wss://8d8ef16cb5534dacbca2b130fa00d5b2.s1.eu.hivemq.cloud:8884/mqtt",
+  {
+    username: "AlineCampos2",
+    password: "Cedric.2020",
+    protocol: "wss",
+  }
+);
 
 // 🛢️ Conexión a PostgreSQL (Render ia-kine-db)
 const db = new Client({
@@ -16,7 +19,7 @@ const db = new Client({
   database: "ia_kine_db",
   password: "AwZDbVALe4ZtYfh1dDxjHiVe7Ks1pSnV",
   port: 5432,
-  ssl: { rejectUnauthorized: false }
+  ssl: { rejectUnauthorized: false },
 });
 
 // 🏗️ Crear tablas si no existen
@@ -69,14 +72,26 @@ mqttClient.on("message", async (topic, message) => {
 
   try {
     if (topic === "aline/temperatura") {
-      await db.query("INSERT INTO temperatura (valor, timestamp) VALUES ($1, $2)", [parseFloat(valor), now]);
+      await db.query(
+        "INSERT INTO temperatura (valor, timestamp) VALUES ($1, $2)",
+        [parseFloat(valor), now]
+      );
     } else if (topic === "aline/humedad") {
-      await db.query("INSERT INTO humedad (valor, timestamp) VALUES ($1, $2)", [parseFloat(valor), now]);
+      await db.query(
+        "INSERT INTO humedad (valor, timestamp) VALUES ($1, $2)",
+        [parseFloat(valor), now]
+      );
     } else if (topic === "aline/aire") {
-      await db.query("INSERT INTO aire (valor, timestamp) VALUES ($1, $2)", [parseInt(valor), now]);
+      await db.query(
+        "INSERT INTO aire (valor, timestamp) VALUES ($1, $2)",
+        [parseInt(valor), now]
+      );
     } else if (topic === "aline/sectorA" || topic === "aline/sectorB") {
       const sector = topic.includes("A") ? "A" : "B";
-      await db.query("INSERT INTO sectores (sector, estado, timestamp) VALUES ($1, $2, $3)", [sector, valor, now]);
+      await db.query(
+        "INSERT INTO sectores (sector, estado, timestamp) VALUES ($1, $2, $3)",
+        [sector, valor, now]
+      );
     }
     console.log(`💾 Guardado: ${topic} -> ${valor}`);
   } catch (err) {
@@ -90,33 +105,36 @@ db.connect()
     console.log("✅ Conectado a PostgreSQL");
     return crearTablas();
   })
-  .catch(err => console.error("❌ Error conectando DB:", err));
+  .catch((err) => console.error("❌ Error conectando DB:", err));
 
 // 🔍 Helper: obtener último dato combinado (temp + hum + aire)
 async function getUltimoSensores() {
   const [t, h, a] = await Promise.all([
-    db.query("SELECT valor, timestamp FROM temperatura ORDER BY timestamp DESC LIMIT 1"),
-    db.query("SELECT valor, timestamp FROM humedad ORDER BY timestamp DESC LIMIT 1"),
-    db.query("SELECT valor, timestamp FROM aire ORDER BY timestamp DESC LIMIT 1")
+    db.query(
+      "SELECT valor, timestamp FROM temperatura ORDER BY timestamp DESC LIMIT 1"
+    ),
+    db.query(
+      "SELECT valor, timestamp FROM humedad ORDER BY timestamp DESC LIMIT 1"
+    ),
+    db.query(
+      "SELECT valor, timestamp FROM aire ORDER BY timestamp DESC LIMIT 1"
+    ),
   ]);
 
   const tempRow = t.rows[0] || {};
-  const humRow  = h.rows[0] || {};
+  const humRow = h.rows[0] || {};
   const aireRow = a.rows[0] || {};
 
   return {
     temp: tempRow.valor ?? null,
-    hum:  humRow.valor ?? null,
+    hum: humRow.valor ?? null,
     mq135: aireRow.valor ?? null,
     timestamp:
-      tempRow.timestamp ||
-      humRow.timestamp ||
-      aireRow.timestamp ||
-      null
+      tempRow.timestamp || humRow.timestamp || aireRow.timestamp || null,
   };
 }
 
-// 🌐 Servidor HTTP simple con CORS
+// 🌐 Servidor HTTP simple con CORS + endpoints
 const PORT = process.env.PORT || 10000;
 
 const server = http.createServer(async (req, res) => {
@@ -131,13 +149,51 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  if (req.url === "/api/sensores/ultimo" && req.method === "GET") {
+  const url = new URL(req.url, `http://${req.headers.host}`);
+
+  // ---- último registro ----
+  if (url.pathname === "/api/sensores/ultimo" && req.method === "GET") {
     try {
       const data = await getUltimoSensores();
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: true, data }));
     } catch (e) {
       console.error("❌ Error en /api/sensores/ultimo:", e.message);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: false, error: "Server error" }));
+    }
+    return;
+  }
+
+  // ---- HISTORIAL: /api/sensores/historial?tipo=temp|hum|mq135 ----
+  if (url.pathname === "/api/sensores/historial" && req.method === "GET") {
+    const tipo = url.searchParams.get("tipo") || "temp";
+    const mapTabla = {
+      temp: "temperatura",
+      hum: "humedad",
+      mq135: "aire",
+    };
+
+    if (!mapTabla[tipo]) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: false, error: "tipo inválido" }));
+      return;
+    }
+
+    try {
+      const tabla = mapTabla[tipo];
+      const q = await db.query(
+        `SELECT valor, timestamp FROM ${tabla} ORDER BY timestamp ASC LIMIT 5000`
+      );
+      const data = q.rows.map((r) => ({
+        timestamp: r.timestamp,
+        value: r.valor,
+      }));
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: true, data }));
+    } catch (e) {
+      console.error("❌ Error en /api/sensores/historial:", e.message);
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: false, error: "Server error" }));
     }
