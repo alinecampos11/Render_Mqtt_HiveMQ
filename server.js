@@ -1,5 +1,6 @@
 const mqtt = require("mqtt");
 const { Client } = require("pg");
+const http = require("http");
 
 // 📡 Conexión a HiveMQ
 const mqttClient = mqtt.connect("wss://8d8ef16cb5534dacbca2b130fa00d5b2.s1.eu.hivemq.cloud:8884/mqtt", {
@@ -8,7 +9,6 @@ const mqttClient = mqtt.connect("wss://8d8ef16cb5534dacbca2b130fa00d5b2.s1.eu.hi
   protocol: "wss"
 });
 
-// 🛢️ Conexión a PostgreSQL (usa tus datos reales de Render)
 // 🛢️ Conexión a PostgreSQL (Render ia-kine-db)
 const db = new Client({
   user: "ia_kine_db_user",
@@ -28,6 +28,7 @@ const crearTablas = async () => {
       timestamp TIMESTAMP
     );
   `);
+
   await db.query(`
     CREATE TABLE IF NOT EXISTS humedad (
       id SERIAL PRIMARY KEY,
@@ -35,6 +36,7 @@ const crearTablas = async () => {
       timestamp TIMESTAMP
     );
   `);
+
   await db.query(`
     CREATE TABLE IF NOT EXISTS aire (
       id SERIAL PRIMARY KEY,
@@ -42,6 +44,7 @@ const crearTablas = async () => {
       timestamp TIMESTAMP
     );
   `);
+
   await db.query(`
     CREATE TABLE IF NOT EXISTS sectores (
       id SERIAL PRIMARY KEY,
@@ -50,6 +53,7 @@ const crearTablas = async () => {
       timestamp TIMESTAMP
     );
   `);
+
   console.log("✅ Tablas creadas/verificadas");
 };
 
@@ -87,11 +91,61 @@ db.connect()
     return crearTablas();
   })
   .catch(err => console.error("❌ Error conectando DB:", err));
-const http = require("http");
 
-const PORT = process.env.PORT || 3000;
-const server = http.createServer((req, res) => {
-  res.writeHead(200);
+// 🔍 Helper: obtener último dato combinado (temp + hum + aire)
+async function getUltimoSensores() {
+  const [t, h, a] = await Promise.all([
+    db.query("SELECT valor, timestamp FROM temperatura ORDER BY timestamp DESC LIMIT 1"),
+    db.query("SELECT valor, timestamp FROM humedad ORDER BY timestamp DESC LIMIT 1"),
+    db.query("SELECT valor, timestamp FROM aire ORDER BY timestamp DESC LIMIT 1")
+  ]);
+
+  const tempRow = t.rows[0] || {};
+  const humRow  = h.rows[0] || {};
+  const aireRow = a.rows[0] || {};
+
+  return {
+    temp: tempRow.valor ?? null,
+    hum:  humRow.valor ?? null,
+    mq135: aireRow.valor ?? null,
+    timestamp:
+      tempRow.timestamp ||
+      humRow.timestamp ||
+      aireRow.timestamp ||
+      null
+  };
+}
+
+// 🌐 Servidor HTTP simple con CORS
+const PORT = process.env.PORT || 10000;
+
+const server = http.createServer(async (req, res) => {
+  // CORS básico
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+  if (req.method === "OPTIONS") {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+
+  if (req.url === "/api/sensores/ultimo" && req.method === "GET") {
+    try {
+      const data = await getUltimoSensores();
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: true, data }));
+    } catch (e) {
+      console.error("❌ Error en /api/sensores/ultimo:", e.message);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: false, error: "Server error" }));
+    }
+    return;
+  }
+
+  // Ruta raíz: texto simple
+  res.writeHead(200, { "Content-Type": "text/plain" });
   res.end("Servidor MQTT + PostgreSQL activo 🚀");
 });
 
