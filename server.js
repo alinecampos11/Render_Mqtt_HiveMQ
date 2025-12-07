@@ -9,11 +9,12 @@ const mqttClient = mqtt.connect("wss://8d8ef16cb5534dacbca2b130fa00d5b2.s1.eu.hi
 });
 
 // 🛢️ Conexión a PostgreSQL (usa tus datos reales de Render)
+// 🛢️ Conexión a PostgreSQL (Render ia-kine-db)
 const db = new Client({
-  user: "tesis_db_07ex_user",
-  host: "dpg-d1miiube5dus73bj9f30-a",
-  database: "tesis_db_07ex",
-  password: "P3ZzxdegDSY2mgA6SYNexm7aD64YTzjl",
+  user: "ia_kine_db_user",
+  host: "dpg-d4cmbkidbo4c73dbk9kg-a.oregon-postgres.render.com",
+  database: "ia_kine_db",
+  password: "AwZDbVALe4ZtYfh1dDxjHiVe7Ks1pSnV",
   port: 5432,
   ssl: { rejectUnauthorized: false }
 });
