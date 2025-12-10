@@ -151,6 +151,28 @@ const server = http.createServer(async (req, res) => {
 
   const url = new URL(req.url, `http://${req.headers.host}`);
 
+    // ---- IA: predicción de sensores -------------------------
+  if (url.pathname === "/api/ia/sensores/forecast" && req.method === "GET") {
+    try {
+      const IA_URL = "https://ia-forecast-service.onrender.com/forecast/sensores";
+
+      console.log("Consultando IA en:", IA_URL);
+
+      const r = await fetch(IA_URL);
+      const json = await r.json();
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(json));
+    } catch (error) {
+      console.error("❌ Error llamando a IA:", error.message);
+
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: false, error: "Error llamando IA" }));
+    }
+    return;
+  }
+
+
   // ---- último registro ----
   if (url.pathname === "/api/sensores/ultimo" && req.method === "GET") {
     try {
