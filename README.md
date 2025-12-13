@@ -84,3 +84,74 @@ El backend se encarga de:
   hablar con la IA
   entregar datos listos para visualizar
 
+
+
+package.json – Configuración del backend Node.js
+
+
+El archivo package.json define la configuración básica del proyecto Node.js, sus dependencias y cómo se ejecuta el servidor.
+
+¿Para qué sirve este archivo?
+
+package.json le dice a Node.js y a plataformas como Render:
+
+cómo se llama el proyecto
+
+qué archivo es el punto de entrada
+
+qué librerías necesita
+
+cómo arrancar el servidor
+
+Sin este archivo, Render no podría instalar dependencias ni ejecutar el backend.
+
+
+
+
+Explicación campo por campo
+🔹 name: Nombre del proyecto.
+   version:Versión del proyecto.
+   main: Indica cuál es el archivo principal del proyecto.
+   scripts : Define comandos ejecutables. npm start → ejecuta node server.js
+              Render usa automáticamente este script para arrancar el servicio.
+
+
+Dependencias
+mqtt : Permite conectarse a HiveMQ
+  Suscribirse a tópicos
+  Recibir datos de sensores IoT
+  Sin esta librería no habría comunicación IoT.
+
+ws:Implementa soporte WebSocket en Node.js
+  MQTT sobre WebSockets depende internamente de esta librería
+  Aunque no se use directamente en el código, es necesaria para la conexión MQTT vía wss://.
+
+pg:
+Cliente oficial de PostgreSQL para Node.js
+Permite:
+  conectar a la base de datos
+  crear tablas
+  insertar datos
+  consultar sensores
+Es la base de todo el almacenamiento histórico
+
+
+Flujo de ejecución usando package.json
+
+Render clona el repositorio
+
+Render ejecuta: npm install
+  instala mqtt, ws, pg
+
+Render ejecuta
+  npm start
+
+Se ejecuta
+  node server.js
+
+El backend queda activo:
+  conectado a HiveMQ
+  conectado a PostgreSQL
+  sirviendo API HTTP
+  conectado con la IA
+
