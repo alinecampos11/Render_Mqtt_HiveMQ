@@ -187,6 +187,30 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // BIM: obtener estado por elemento
+if (url.pathname === "/api/bim/estado" && req.method === "GET") {
+  try {
+    const q = await db.query(`
+      SELECT elemento_id, estado
+      FROM bim_estados
+    `);
+
+    const data = {};
+    q.rows.forEach(r => {
+      data[r.elemento_id] = r.estado;
+    });
+
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ ok: true, data }));
+  } catch (e) {
+    console.error("❌ Error BIM estado:", e.message);
+    res.writeHead(500, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ ok: false, error: e.message }));
+  }
+  return;
+}
+
+
   // Ruta raíz
   res.writeHead(200, { "Content-Type": "text/plain" });
   res.end("Servidor MQTT + PostgreSQL activo 🚀");
