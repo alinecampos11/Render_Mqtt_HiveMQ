@@ -303,30 +303,35 @@ if (url.pathname === "/api/bim/estado" && req.method === "POST") {
 }
 
   // ---- BIM: importar Excel -------------------------
+// ---- BIM: importar Excel (modernizado) -------------------------
 if (url.pathname === "/api/bim/import-excel" && req.method === "POST") {
-  let body = "";
+  const formidable = require("formidable");
+  const form = new formidable.IncomingForm();
 
-  req.on("data", chunk => {
-    body += chunk.toString("base64");
-  });
+  form.parse(req, async (err, fields, files) => {
+    if (err) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: false, error: err.message }));
+      return;
+    }
 
-  req.on("end", async () => {
     try {
       const XLSX = require("xlsx");
-      const buffer = Buffer.from(body, "base64");
-
-      const wb = XLSX.read(buffer, { type: "buffer" });
+      const wb = XLSX.readFile(files.file.filepath); // archivo subido
       const sheet = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(sheet);
 
-      for (const r of rows) {
-        await db.query(`
-          INSERT INTO bim_estados (elemento_id, estado, timestamp)
-          VALUES ($1, $2, NOW())
-          ON CONFLICT (elemento_id)
-          DO UPDATE SET estado=$2, timestamp=NOW()
-        `, [r.ID, r.Estado]);
-      }
+      // Insertar todas las filas en paralelo
+      await Promise.all(
+        rows.map(r =>
+          db.query(`
+            INSERT INTO bim_estados (elemento_id, estado, timestamp)
+            VALUES ($1, $2, NOW())
+            ON CONFLICT (elemento_id)
+            DO UPDATE SET estado=$2, timestamp=NOW()
+          `, [r.ID, r.Estado])
+        )
+      );
 
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: true, rows: rows.length }));
@@ -339,6 +344,7 @@ if (url.pathname === "/api/bim/import-excel" && req.method === "POST") {
 
   return;
 }
+
 
 
 
