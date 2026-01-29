@@ -57,6 +57,16 @@ const crearTablas = async () => {
     );
   `);
 
+  await db.query(`
+  CREATE TABLE IF NOT EXISTS bim_estados (
+    id SERIAL PRIMARY KEY,
+    elemento_id TEXT UNIQUE,
+    estado TEXT,
+    timestamp TIMESTAMP
+  );
+`);
+
+
   console.log("✅ Tablas creadas/verificadas");
 };
 
@@ -221,6 +231,73 @@ const server = http.createServer(async (req, res) => {
     }
     return;
   }
+
+  // ---- BIM: obtener estado por elemento --------------------
+if (url.pathname === "/api/bim/estado" && req.method === "GET") {
+  try {
+    const q = await db.query(`
+      SELECT elemento_id, estado
+      FROM bim_estados
+    `);
+
+    const data = {};
+    q.rows.forEach(r => {
+      data[r.elemento_id] = r.estado;
+    });
+
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ ok: true, data }));
+  } catch (e) {
+    console.error("❌ Error BIM estado:", e.message);
+    res.writeHead(500, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ ok: false }));
+  }
+  return;
+}
+
+  // ---- BIM: guardar estado de columna / viga -------------------------
+if (url.pathname === "/api/bim/estado" && req.method === "POST") {
+  let body = "";
+
+  req.on("data", chunk => {
+    body += chunk.toString();
+  });
+
+  req.on("end", async () => {
+    try {
+      const { elemento_id, estado } = JSON.parse(body);
+
+      if (!elemento_id || !estado) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: false, error: "datos incompletos" }));
+        return;
+      }
+
+      await db.query(
+        `
+        INSERT INTO bim_estados (elemento_id, estado, timestamp)
+        VALUES ($1, $2, NOW())
+        ON CONFLICT (elemento_id)
+        DO UPDATE SET estado = $2, timestamp = NOW()
+        `,
+        [elemento_id, estado]
+      );
+
+      console.log(`🏗️ BIM actualizado: ${elemento_id} → ${estado}`);
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: true }));
+    } catch (err) {
+      console.error("❌ Error BIM:", err.message);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: false, error: "server error" }));
+    }
+  });
+
+  return;
+}
+
+
 
   // Ruta raíz: texto simple
   res.writeHead(200, { "Content-Type": "text/plain" });
