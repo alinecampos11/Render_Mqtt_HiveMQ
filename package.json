@@ -2,13 +2,15 @@
   "name": "mqtt-websocket-bridge",
   "version": "1.0.0",
   "main": "server.js",
+  "type": "commonjs",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
     "mqtt": "^5.0.0",
-    "ws": "^8.0.0",
     "pg": "^8.11.3",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.22.0",
+    "formidable": "^2.1.1",
+    "node-fetch": "^3.3.1"
   }
 }
