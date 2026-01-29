@@ -304,6 +304,7 @@ if (url.pathname === "/api/bim/estado" && req.method === "POST") {
 
   // ---- BIM: importar Excel -------------------------
 // ---- BIM: importar Excel (modernizado) -------------------------
+// ---- BIM: importar Excel (completo, producción) -------------------------
 if (url.pathname === "/api/bim/import-excel" && req.method === "POST") {
   const formidable = require("formidable");
   const form = new formidable.IncomingForm();
@@ -317,28 +318,34 @@ if (url.pathname === "/api/bim/import-excel" && req.method === "POST") {
 
     try {
       const XLSX = require("xlsx");
-      const wb = XLSX.readFile(files.file.filepath); // archivo subido
+      const wb = XLSX.readFile(files.file.filepath); // Archivo subido
       const sheet = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(sheet);
 
-      // Insertar todas las filas en paralelo
+      // Insertar o actualizar todas las filas en paralelo
       await Promise.all(
         rows.map(r =>
           db.query(`
-            INSERT INTO bim_estados (elemento_id, estado, timestamp)
-            VALUES ($1, $2, NOW())
+            INSERT INTO bim_estados (elemento_id, sector, tipo, fila, columna, estado, timestamp)
+            VALUES ($1, $2, $3, $4, $5, $6, NOW())
             ON CONFLICT (elemento_id)
-            DO UPDATE SET estado=$2, timestamp=NOW()
-          `, [r.ID, r.Estado])
+            DO UPDATE SET 
+              sector = EXCLUDED.sector,
+              tipo = EXCLUDED.tipo,
+              fila = EXCLUDED.fila,
+              columna = EXCLUDED.columna,
+              estado = EXCLUDED.estado,
+              timestamp = NOW()
+          `, [r.ID, r.Sector, r.Tipo, r.Fila, r.Columna, r.Estado])
         )
       );
 
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: true, rows: rows.length }));
     } catch (e) {
-      console.error("❌ Excel BIM:", e.message);
+      console.error("❌ Error al importar Excel BIM:", e.message);
       res.writeHead(500, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ ok: false }));
+      res.end(JSON.stringify({ ok: false, error: e.message }));
     }
   });
 
