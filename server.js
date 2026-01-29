@@ -57,14 +57,19 @@ const crearTablas = async () => {
     );
   `);
 
+   // 👇 TABLA BIM (Excel ⇄ VR)
   await db.query(`
-  CREATE TABLE IF NOT EXISTS bim_estados (
-    id SERIAL PRIMARY KEY,
-    elemento_id TEXT UNIQUE,
-    estado TEXT,
-    timestamp TIMESTAMP
-  );
-`);
+    CREATE TABLE IF NOT EXISTS bim_estados (
+      id SERIAL PRIMARY KEY,
+      elemento_id TEXT UNIQUE,
+      sector TEXT,
+      tipo TEXT,
+      fila INTEGER,
+      columna INTEGER,
+      estado TEXT,
+      timestamp TIMESTAMP
+    );
+  `);
 
 
   console.log("✅ Tablas creadas/verificadas");
